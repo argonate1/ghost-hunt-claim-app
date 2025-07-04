@@ -6,9 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { formatUnits } from 'viem';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
@@ -18,7 +20,15 @@ import Toast from 'react-native-toast-message';
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
-  const { connectWallet, disconnectWallet, isConnected } = useWallet();
+  const { 
+    connectWallet, 
+    disconnectWallet, 
+    isConnected, 
+    walletAddress, 
+    ghoxBalance, 
+    isLoading,
+    refreshBalance 
+  } = useWallet();
 
   const handleConnectWallet = async () => {
     try {
@@ -39,11 +49,6 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: () => {
             disconnectWallet();
-            Toast.show({
-              type: 'info',
-              text1: 'Wallet Disconnected',
-              text2: 'Your wallet has been disconnected.',
-            });
           },
         },
       ]
@@ -93,9 +98,21 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             {isConnected ? (
               <View>
-                <Text style={styles.cardDescription}>
-                  Your wallet is currently connected
-                </Text>
+                <View style={styles.cardRow}>
+                  <Text style={styles.label}>$GHOX Balance</Text>
+                  <View style={styles.balanceContainer}>
+                    {isLoading ? (
+                      <ActivityIndicator size="small" color={colors.text.primary} />
+                    ) : (
+                      <Text style={styles.balanceValue}>
+                        {Number(formatUnits(ghoxBalance, 18)).toLocaleString()}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                
+                <View style={styles.buttonSpacer} />
+                
                 <TouchableOpacity
                   style={[styles.button, styles.disconnectButton]}
                   onPress={handleDisconnectWallet}
@@ -250,6 +267,18 @@ const styles = StyleSheet.create({
   },
   disconnectButton: {
     backgroundColor: colors.warning,
+  },
+  balanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  balanceValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  buttonSpacer: {
+    height: 16,
   },
   signOutButton: {
     backgroundColor: 'transparent',

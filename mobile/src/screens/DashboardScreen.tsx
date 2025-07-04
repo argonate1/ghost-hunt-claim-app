@@ -6,10 +6,13 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { formatUnits } from 'viem';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useWallet } from '../contexts/WalletContext';
 import { colors } from '../theme/colors';
 import { commonStyles } from '../theme/styles';
 import { Drop } from '../types/database';
@@ -20,6 +23,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
+  const { isConnected, ghoxBalance, isLoading: walletLoading } = useWallet();
 
   useEffect(() => {
     fetchDrops();
@@ -80,6 +84,21 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Ghost Feed</Text>
           <Text style={styles.subtitle}>Latest ghost drops waiting to be claimed</Text>
+          
+          {isConnected && (
+            <View style={styles.balanceContainer}>
+              <Text style={styles.balanceLabel}>Your $GHOX Balance:</Text>
+              <View style={styles.balanceValueContainer}>
+                {walletLoading ? (
+                  <ActivityIndicator size="small" color={colors.text.primary} />
+                ) : (
+                  <Text style={styles.balanceValue}>
+                    {Number(formatUnits(ghoxBalance, 18)).toLocaleString()}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Drops List */}
@@ -168,6 +187,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text.muted,
     marginBottom: 20,
+  },
+  balanceContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  balanceLabel: {
+    fontSize: 16,
+    color: colors.text.muted,
+  },
+  balanceValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  balanceValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
   },
   dropsList: {
     paddingHorizontal: 20,
