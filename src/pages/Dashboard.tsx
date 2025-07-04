@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DropCard } from '@/components/drops/DropCard';
 import { MobileNavigation } from '@/components/layout/MobileNavigation';
-import { WalletConnection } from '@/components/wallet/WalletConnection';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Dashboard() {
@@ -31,12 +30,6 @@ export default function Dashboard() {
             </h1>
             <p className="text-muted-foreground">Latest ghost drops waiting to be claimed</p>
           </div>
-          <div className="hidden md:block">
-            <WalletConnection compact={true} />
-          </div>
-        </div>
-        <div className="md:hidden mb-4">
-          <WalletConnection compact={false} />
         </div>
       </header>
 

@@ -4,15 +4,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   RefreshControl,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useWallet } from '../contexts/WalletContext';
 import { colors } from '../theme/colors';
 import { commonStyles } from '../theme/styles';
 import { Drop } from '../types/database';
@@ -23,7 +20,6 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
-  const { walletAddress, isConnected, connectWallet } = useWallet();
 
   useEffect(() => {
     fetchDrops();
@@ -57,14 +53,6 @@ export default function DashboardScreen() {
     fetchDrops();
   };
 
-  const handleConnectWallet = async () => {
-    try {
-      await connectWallet();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to connect wallet');
-    }
-  };
-
   if (loading) {
     return (
       <SafeAreaView style={commonStyles.loadingContainer}>
@@ -92,26 +80,6 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Ghost Feed</Text>
           <Text style={styles.subtitle}>Latest ghost drops waiting to be claimed</Text>
-          
-          {/* Wallet Connection */}
-          {!isConnected && (
-            <TouchableOpacity style={styles.walletButton} onPress={handleConnectWallet}>
-              <LinearGradient
-                colors={colors.gradients.cosmic as unknown as readonly [string, string, ...string[]]}
-                style={styles.walletButtonGradient}
-              >
-                <Text style={styles.walletButtonText}>🔗 Connect Wallet</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-          
-          {isConnected && (
-            <View style={styles.walletInfo}>
-              <Text style={styles.walletAddress}>
-                {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Drops List */}
@@ -200,33 +168,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text.muted,
     marginBottom: 20,
-  },
-  walletButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  walletButtonGradient: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  walletButtonText: {
-    color: colors.text.primary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  walletInfo: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  walletAddress: {
-    color: colors.text.muted,
-    fontSize: 14,
-    fontWeight: '500',
   },
   dropsList: {
     paddingHorizontal: 20,

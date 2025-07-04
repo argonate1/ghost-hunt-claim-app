@@ -76,6 +76,7 @@ function TabNavigator() {
         component={MapScreen}
         options={{
           title: 'Map',
+          headerShown: false,
           tabBarIcon: ({ focused }) => <TabIcon icon="🗺️" focused={focused} />,
         }}
       />

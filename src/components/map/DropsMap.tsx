@@ -293,7 +293,7 @@ export default function DropsMap({ mapboxToken = MAPBOX_TOKEN, disableInteractio
 
 
   return (
-    <div className="relative w-full h-[600px] rounded-lg overflow-hidden border border-border">
+    <div className="relative w-full h-[800px] overflow-hidden">
       <div ref={mapContainer} className="w-full h-full" />
       
       {/* No drops message */}

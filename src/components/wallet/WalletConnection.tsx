@@ -21,10 +21,6 @@ export function WalletConnection({ showBalance = true, compact = false, onConnec
   const handleConnect = async () => {
     try {
       connectWallet();
-      toast({
-        title: "Wallet Selection Opened",
-        description: "Choose your preferred wallet to connect",
-      });
       onConnect?.();
     } catch (error: any) {
       toast({

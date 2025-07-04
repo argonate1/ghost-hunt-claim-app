@@ -4,8 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { formatDistanceToNow } from 'date-fns';
-import { useWallet } from '@/contexts/WalletConnectContext';
-import { Wallet, MapPin } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import DropsMap from '@/components/map/DropsMap';
 
 interface Drop {
@@ -25,15 +24,9 @@ interface DropCardProps {
 }
 
 export function DropCard({ drop }: DropCardProps) {
-  const { walletAddress, hasMinimumGhox, connectWallet } = useWallet();
   const [isMapOpen, setIsMapOpen] = useState(false);
   const isExpired = drop.expires_at && new Date(drop.expires_at) < new Date();
   const timeAgo = formatDistanceToNow(new Date(drop.created_at), { addSuffix: true });
-  
-  // Check if user has access to view full details
-  const requiredGhox = drop.min_ghox_required || 0;
-  const hasAccess = requiredGhox === 0 || (walletAddress && hasMinimumGhox(requiredGhox));
-  const needsWallet = requiredGhox > 0 && !walletAddress;
   
   // Check if drop has location coordinates
   const hasLocation = drop.latitude && drop.longitude;
@@ -96,41 +89,13 @@ export function DropCard({ drop }: DropCardProps) {
       </CardHeader>
       
       <CardContent>
-        {hasAccess ? (
-          <>
-            <p className="text-foreground text-sm leading-relaxed">
-              {drop.description}
-            </p>
-            
-            {drop.expires_at && !isExpired && (
-              <div className="mt-3 text-xs text-muted-foreground">
-                Expires {formatDistanceToNow(new Date(drop.expires_at), { addSuffix: true })}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-muted-foreground text-sm">
-              This drop requires {requiredGhox.toLocaleString()} $GHOX to participate.
-            </p>
-            
-            {needsWallet && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={connectWallet}
-                className="text-primary border-primary/20 hover:bg-primary/10"
-              >
-                <Wallet className="h-3 w-3 mr-1" />
-                Connect Wallet
-              </Button>
-            )}
-            
-            {drop.expires_at && !isExpired && (
-              <div className="mt-3 text-xs text-muted-foreground">
-                Expires {formatDistanceToNow(new Date(drop.expires_at), { addSuffix: true })}
-              </div>
-            )}
+        <p className="text-foreground text-sm leading-relaxed">
+          {drop.description}
+        </p>
+        
+        {drop.expires_at && !isExpired && (
+          <div className="mt-3 text-xs text-muted-foreground">
+            Expires {formatDistanceToNow(new Date(drop.expires_at), { addSuffix: true })}
           </div>
         )}
       </CardContent>

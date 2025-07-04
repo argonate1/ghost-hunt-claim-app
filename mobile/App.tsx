@@ -1,3 +1,5 @@
+import './polyfills';
+import '@walletconnect/react-native-compat';
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, LogBox, AppRegistry } from 'react-native';
@@ -8,7 +10,7 @@ import { AuthProvider } from './src/contexts/AuthContext';
 import { WalletProvider } from './src/contexts/WalletContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { toastConfig } from './src/utils/toastConfig';
-import 'react-native-url-polyfill/auto';
+import { AppKit } from '@reown/appkit-wagmi-react-native';
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -25,6 +27,7 @@ function App() {
             <AppNavigator />
           </NavigationContainer>
           <StatusBar style="light" backgroundColor="#1a1a2e" />
+          <AppKit />
         </WalletProvider>
       </AuthProvider>
       <Toast config={toastConfig} />

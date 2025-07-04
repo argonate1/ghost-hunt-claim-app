@@ -1,12 +1,32 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAppKit } from '@reown/appkit-wagmi-react-native';
+import { WagmiProvider } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useAccount, useDisconnect, usePublicClient } from 'wagmi';
+import { useAppKit } from '@reown/appkit-wagmi-react-native';
+import { formatUnits } from 'viem';
+import { config, projectId, chains } from '../config/walletconnect';
+
+// GHOX token contract address
+const GHOX_CONTRACT_ADDRESS = '0xaF17f5e5AfeB515cA3e3C170658f3cb072b14108';
+
+// ERC-20 ABI for balance checking
+const ERC20_ABI = [
+  {
+    constant: true,
+    inputs: [{ name: '_owner', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: 'balance', type: 'uint256' }],
+    type: 'function',
+  },
+] as const;
 
 interface WalletContextType {
   walletAddress: string | null;
-  ghoxBalance: string;
+  ghoxBalance: bigint;
   isConnected: boolean;
-  loading: boolean;
-  connectWallet: () => Promise<void>;
+  isLoading: boolean;
+  connectWallet: () => void;
   disconnectWallet: () => void;
   hasMinimumGhox: (required: number) => boolean;
   refreshBalance: () => Promise<void>;
@@ -14,79 +34,82 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [ghoxBalance, setGhoxBalance] = useState<string>('0');
-  const [loading, setLoading] = useState(false);
+// Create a query client
+const queryClient = new QueryClient();
 
-  const isConnected = walletAddress !== null;
+// Create the AppKit instance
+const modal = createAppKit({
+  projectId,
+  wagmiConfig: config,
+  defaultChain: chains[0],
+  enableAnalytics: true,
+});
 
-  useEffect(() => {
-    // Load wallet from storage on app start
-    loadWalletFromStorage();
-  }, []);
+// Inner component that uses wagmi hooks
+function WalletProviderInner({ children }: { children: React.ReactNode }) {
+  const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { open } = useAppKit();
+  const publicClient = usePublicClient();
+  
+  const [ghoxBalance, setGhoxBalance] = useState<bigint>(0n);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const loadWalletFromStorage = async () => {
-    try {
-      const savedWallet = await AsyncStorage.getItem('wallet_address');
-      if (savedWallet) {
-        setWalletAddress(savedWallet);
-        await refreshBalance();
-      }
-    } catch (error) {
-      console.error('Error loading wallet from storage:', error);
-    }
+  const connectWallet = () => {
+    // Use the modal instance directly
+    open();
   };
 
-  const connectWallet = async () => {
-    try {
-      setLoading(true);
-      // For now, we'll simulate wallet connection
-      // In a real app, this would integrate with WalletConnect or similar
-      const mockWallet = '0x1234567890123456789012345678901234567890';
-      setWalletAddress(mockWallet);
-      await AsyncStorage.setItem('wallet_address', mockWallet);
-      await refreshBalance();
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const disconnectWallet = async () => {
-    try {
-      setWalletAddress(null);
-      setGhoxBalance('0');
-      await AsyncStorage.removeItem('wallet_address');
-    } catch (error) {
-      console.error('Error disconnecting wallet:', error);
-    }
+  const disconnectWallet = () => {
+    disconnect();
   };
 
   const refreshBalance = async () => {
-    if (!walletAddress) return;
-    
+    if (!address || !publicClient) {
+      setGhoxBalance(0n);
+      return;
+    }
+
     try {
-      // Mock GHOX balance - in a real app, this would fetch from blockchain
-      const mockBalance = '1000';
-      setGhoxBalance(mockBalance);
+      setIsLoading(true);
+      const balance = await publicClient.readContract({
+        address: GHOX_CONTRACT_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [address],
+      });
+      
+      setGhoxBalance(balance as bigint);
     } catch (error) {
-      console.error('Error refreshing balance:', error);
-      setGhoxBalance('0');
+      console.error('Error fetching GHOX balance:', error);
+      setGhoxBalance(0n);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const hasMinimumGhox = (required: number): boolean => {
-    const balance = parseFloat(ghoxBalance);
-    return balance >= required;
+    if (!ghoxBalance) return required === 0;
+    
+    // Convert required amount to wei (assuming 18 decimals for GHOX)
+    const requiredWei = BigInt(required) * BigInt(10 ** 18);
+    return ghoxBalance >= requiredWei;
   };
 
+  // Refresh balance when address changes
+  useEffect(() => {
+    if (isConnected && address) {
+      refreshBalance();
+    } else {
+      setGhoxBalance(0n);
+    }
+  }, [address, isConnected, publicClient]);
+
   const value: WalletContextType = {
-    walletAddress,
+    walletAddress: address || null,
     ghoxBalance,
     isConnected,
-    loading,
+    isLoading,
     connectWallet,
     disconnectWallet,
     hasMinimumGhox,
@@ -97,6 +120,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     <WalletContext.Provider value={value}>
       {children}
     </WalletContext.Provider>
+  );
+}
+
+// Main provider component with all necessary providers
+export function WalletProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <WalletProviderInner>
+          {children}
+        </WalletProviderInner>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }
 

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -18,77 +17,12 @@ import { commonStyles } from '../theme/styles';
 import Toast from 'react-native-toast-message';
 
 export default function SettingsScreen() {
-  const [walletAddress, setWalletAddress] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
   const { user, signOut } = useAuth();
   const { connectWallet, disconnectWallet, isConnected } = useWallet();
-
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('wallet_address')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!error && data) {
-        setWalletAddress(data.wallet_address || '');
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
-      setInitialLoading(false);
-    }
-  };
-
-  const handleSaveWallet = async () => {
-    if (!user) return;
-
-    // Basic Ethereum address validation
-    if (walletAddress && !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-      Alert.alert('Invalid Address', 'Please enter a valid Ethereum wallet address (0x...)');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ wallet_address: walletAddress || null })
-        .eq('user_id', user.id);
-
-      if (error) {
-        Alert.alert('Error', 'Failed to update wallet address. Please try again.');
-      } else {
-        Toast.show({
-          type: 'success',
-          text1: 'Wallet Updated! 👻',
-          text2: 'Your wallet address has been saved successfully.',
-        });
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update wallet address. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleConnectWallet = async () => {
     try {
       await connectWallet();
-      Toast.show({
-        type: 'success',
-        text1: 'Wallet Connected! 🔗',
-        text2: 'Your wallet has been connected successfully.',
-      });
     } catch (error) {
       Alert.alert('Error', 'Failed to connect wallet. Please try again.');
     }
@@ -133,25 +67,12 @@ export default function SettingsScreen() {
     );
   };
 
-  if (initialLoading) {
-    return (
-      <SafeAreaView style={commonStyles.loadingContainer}>
-        <View style={commonStyles.ghostIconLarge}>
-          <Text style={styles.ghostEmoji}>⚙️</Text>
-        </View>
-        <Text style={commonStyles.loadingText}>Loading settings...</Text>
-      </SafeAreaView>
-    );
-  }
+
 
   return (
     <SafeAreaView style={commonStyles.safeArea}>
       <ScrollView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Settings</Text>
-          <Text style={styles.subtitle}>Manage your account and preferences</Text>
-        </View>
+
 
         {/* Profile Section */}
         <View style={styles.section}>
@@ -164,41 +85,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Wallet Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔗 Ethereum Wallet</Text>
-          <View style={styles.card}>
-            <Text style={styles.cardDescription}>
-              Set your wallet address to receive Ghostcoin rewards
-            </Text>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Wallet Address</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0x..."
-                placeholderTextColor={colors.text.muted}
-                value={walletAddress}
-                onChangeText={setWalletAddress}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Text style={styles.inputHelper}>
-                Enter your Ethereum wallet address (starts with 0x)
-              </Text>
-            </View>
 
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleSaveWallet}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? 'Saving...' : 'Save Wallet Address'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {/* Wallet Connection Section */}
         <View style={styles.section}>
@@ -223,7 +110,7 @@ export default function SettingsScreen() {
                 </Text>
                 <TouchableOpacity style={styles.connectButton} onPress={handleConnectWallet}>
                   <LinearGradient
-                    colors={colors.gradients.cosmic}
+                    colors={colors.gradients.cosmic as unknown as readonly [string, string, ...string[]]}
                     style={styles.connectButtonGradient}
                   >
                     <Text style={styles.connectButtonText}>Connect Wallet</Text>
