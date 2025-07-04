@@ -53,9 +53,31 @@ function WalletProviderInner({ children }: { children: React.ReactNode }) {
   const [ghoxBalance, setGhoxBalance] = useState<bigint>(0n);
   const [isLoading, setIsLoading] = useState(false);
 
-  const connectWallet = () => {
-    // Use the modal instance directly
-    modal.open();
+  const connectWallet = async () => {
+    try {
+      // Use the modal instance directly
+      modal.open();
+    } catch (error) {
+      console.error('Wallet connection error:', error);
+      // Handle specific WalletConnect errors
+      if (error instanceof Error) {
+        if (error.message.includes('User rejected') || error.message.includes('User cancelled')) {
+          console.log('User cancelled wallet connection');
+          return;
+        }
+        if (error.message.includes('No matching key') || error.message.includes('Proposal expired')) {
+          console.log('Session expired, retrying connection...');
+          // Clear any stale session data and retry
+          try {
+            modal.open();
+          } catch (retryError) {
+            console.error('Retry connection failed:', retryError);
+          }
+          return;
+        }
+      }
+      throw error;
+    }
   };
 
   const disconnectWallet = () => {

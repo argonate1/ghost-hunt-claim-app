@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,29 +18,69 @@ import { commonStyles } from '../theme/styles';
 import { Drop } from '../types/database';
 import { formatDistanceToNow } from 'date-fns';
 
+// Calculate delta values for 20-mile radius
+// 20 miles ≈ 32.19 km
+// At latitude 37.7749 (San Francisco), 1 degree latitude ≈ 111 km
+// 1 degree longitude ≈ 88.6 km (varies by latitude)
+// For 20-mile radius: latitudeDelta ≈ 32.19/111 ≈ 0.29, longitudeDelta ≈ 32.19/88.6 ≈ 0.36
+const TWENTY_MILE_LATITUDE_DELTA = 0.29;
+const TWENTY_MILE_LONGITUDE_DELTA = 0.36;
+
+// Maximum distance to show drops (in miles)
+const MAX_DISTANCE_MILES = 100;
+
 const INITIAL_REGION: Region = {
   latitude: 37.7749,
   longitude: -122.4194,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
+  latitudeDelta: TWENTY_MILE_LATITUDE_DELTA,
+  longitudeDelta: TWENTY_MILE_LONGITUDE_DELTA,
+};
+
+// Function to calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 3959; // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in miles
 };
 
 export default function MapScreen() {
+  const mapRef = useRef<MapView>(null);
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDrop, setSelectedDrop] = useState<Drop | null>(null);
   const [region, setRegion] = useState<Region>(INITIAL_REGION);
   const [locationPermission, setLocationPermission] = useState<boolean>(false);
+  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const { hasMinimumGhox, isConnected } = useWallet();
 
   const filteredDrops = useMemo(() => {
     return drops.filter((drop) => {
       // Filter based on GHOX requirements
       const requiredGhox = drop.min_ghox_required || 0;
-      if (requiredGhox === 0) return true;
-      return isConnected && hasMinimumGhox(requiredGhox);
+      const hasGhoxAccess = requiredGhox === 0 || (isConnected && hasMinimumGhox(requiredGhox));
+      
+      if (!hasGhoxAccess) return false;
+      
+      // Filter by distance if user location is available
+      if (userLocation && drop.latitude && drop.longitude) {
+        const distance = calculateDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          drop.latitude,
+          drop.longitude
+        );
+        return distance <= MAX_DISTANCE_MILES;
+      }
+      
+      return true; // Show all drops if no user location
     });
-  }, [drops, isConnected, hasMinimumGhox]);
+  }, [drops, isConnected, hasMinimumGhox, userLocation]);
 
   const isExpired = (drop: Drop) => {
     return drop.expires_at && new Date(drop.expires_at) < new Date();
@@ -66,11 +106,17 @@ export default function MapScreen() {
       
       if (status === 'granted') {
         const location = await Location.getCurrentPositionAsync({});
-        setRegion({
+        const userCoords = {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
+        };
+        
+        setUserLocation(userCoords);
+        setRegion({
+          latitude: userCoords.latitude,
+          longitude: userCoords.longitude,
+          latitudeDelta: TWENTY_MILE_LATITUDE_DELTA,
+          longitudeDelta: TWENTY_MILE_LONGITUDE_DELTA,
         });
       }
     } catch (error) {
@@ -101,6 +147,18 @@ export default function MapScreen() {
     }
   };
 
+  // Center map on user location when available
+  useEffect(() => {
+    if (userLocation && mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: TWENTY_MILE_LATITUDE_DELTA,
+        longitudeDelta: TWENTY_MILE_LONGITUDE_DELTA,
+      }, 1000);
+    }
+  }, [userLocation]);
+
   if (loading) {
     return (
       <SafeAreaView style={commonStyles.loadingContainer}>
@@ -113,6 +171,7 @@ export default function MapScreen() {
     <SafeAreaView style={commonStyles.safeArea}>
       <View style={styles.container}>
         <MapView
+          ref={mapRef}
           style={styles.map}
           region={region}
           onRegionChangeComplete={setRegion}

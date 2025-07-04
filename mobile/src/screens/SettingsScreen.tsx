@@ -105,7 +105,7 @@ export default function SettingsScreen() {
                       <ActivityIndicator size="small" color={colors.text.primary} />
                     ) : (
                       <Text style={styles.balanceValue}>
-                        {Number(formatUnits(ghoxBalance, 18)).toLocaleString()}
+                        {ghoxBalance ? Number(formatUnits(ghoxBalance, 18)).toLocaleString() : '0'}
                       </Text>
                     )}
                   </View>

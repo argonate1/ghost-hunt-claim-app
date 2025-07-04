@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { colors } from '../theme/colors';
@@ -19,9 +20,10 @@ import Toast from 'react-native-toast-message';
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+  const [isScanning, setIsScanning] = useState(true); // Start scanning immediately
   const [processing, setProcessing] = useState(false);
   const { user } = useAuth();
+  const navigation = useNavigation();
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
     if (scanned || processing) return;
@@ -113,14 +115,8 @@ export default function ScannerScreen() {
     setProcessing(false);
   };
 
-  const startScanning = () => {
-    setIsScanning(true);
-    setScanned(false);
-  };
-
   const stopScanning = () => {
-    setIsScanning(false);
-    setScanned(false);
+    navigation.goBack();
   };
 
   if (!permission) {
@@ -151,55 +147,31 @@ export default function ScannerScreen() {
   return (
     <SafeAreaView style={commonStyles.safeArea}>
       <View style={styles.container}>
-        {!isScanning ? (
-          <View style={styles.welcomeContainer}>
-            <LinearGradient
-              colors={colors.gradients.primary as unknown as readonly [string, string, ...string[]]}
-              style={commonStyles.ghostIconLarge}
-            >
-              <Text style={styles.ghostEmoji}>📱</Text>
-            </LinearGradient>
+        <View style={styles.cameraContainer}>
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          />
+          
+          {/* Camera Overlay - positioned absolutely over the camera */}
+          <View style={styles.cameraOverlay}>
+            <View style={styles.scanFrame}>
+              <View style={styles.scanCorner} />
+              <View style={[styles.scanCorner, styles.topRight]} />
+              <View style={[styles.scanCorner, styles.bottomLeft]} />
+              <View style={[styles.scanCorner, styles.bottomRight]} />
+            </View>
             
-            <Text style={styles.title}>Ghost Scanner</Text>
-            <Text style={styles.subtitle}>
-              Scan QR codes to claim ghost rewards
+            <Text style={styles.scanInstructions}>
+              Point your camera at a ghost QR code
             </Text>
             
-            <TouchableOpacity style={styles.scanButton} onPress={startScanning}>
-              <LinearGradient
-                colors={colors.gradients.cosmic as unknown as readonly [string, string, ...string[]]}
-                style={styles.scanButtonGradient}
-              >
-                <Text style={styles.scanButtonText}>Start Scanning</Text>
-              </LinearGradient>
+            <TouchableOpacity style={styles.cancelButton} onPress={stopScanning}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <View style={styles.cameraContainer}>
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-            >
-              <View style={styles.cameraOverlay}>
-                <View style={styles.scanFrame}>
-                  <View style={styles.scanCorner} />
-                  <View style={[styles.scanCorner, styles.topRight]} />
-                  <View style={[styles.scanCorner, styles.bottomLeft]} />
-                  <View style={[styles.scanCorner, styles.bottomRight]} />
-                </View>
-                
-                <Text style={styles.scanInstructions}>
-                  Point your camera at a ghost QR code
-                </Text>
-                
-                <TouchableOpacity style={styles.cancelButton} onPress={stopScanning}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </CameraView>
-          </View>
-        )}
+        </View>
         
         {/* Processing Modal */}
         <Modal visible={processing} transparent animationType="fade">
@@ -266,7 +238,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cameraOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',

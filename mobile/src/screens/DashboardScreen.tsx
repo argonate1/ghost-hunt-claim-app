@@ -16,7 +16,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { colors } from '../theme/colors';
 import { commonStyles } from '../theme/styles';
 import { Drop } from '../types/database';
-import { formatDistanceToNow } from 'date-fns';
+import { DropCard } from '../components/DropCard';
 
 export default function DashboardScreen() {
   const [drops, setDrops] = useState<Drop[]>([]);
@@ -69,9 +69,11 @@ export default function DashboardScreen() {
   }
 
   return (
-    <SafeAreaView style={commonStyles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
         style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -93,7 +95,7 @@ export default function DashboardScreen() {
                   <ActivityIndicator size="small" color={colors.text.primary} />
                 ) : (
                   <Text style={styles.balanceValue}>
-                    {Number(formatUnits(ghoxBalance, 18)).toLocaleString()}
+                    {ghoxBalance ? Number(formatUnits(ghoxBalance, 18)).toLocaleString() : '0'}
                   </Text>
                 )}
               </View>
@@ -124,58 +126,24 @@ export default function DashboardScreen() {
   );
 }
 
-const DropCard = ({ drop }: { drop: Drop }) => {
-  const isExpired = drop.expires_at && new Date(drop.expires_at) < new Date();
-  
-  return (
-    <View style={[styles.dropCard, isExpired && styles.expiredCard]}>
-      <View style={styles.dropHeader}>
-        <Text style={styles.dropTitle}>{drop.title || 'Untitled Drop'}</Text>
-        <Text style={styles.dropEmoji}>👻</Text>
-      </View>
-      
-      {drop.description ? (
-        <Text style={styles.dropDescription}>{drop.description}</Text>
-      ) : null}
-      
-      {drop.prize ? (
-        <View style={styles.prizeContainer}>
-          <Text style={styles.prizeLabel}>🏆 Prize</Text>
-          <Text style={styles.prizeValue}>{drop.prize}</Text>
-        </View>
-      ) : null}
-      
-      <View style={styles.dropFooter}>
-        <Text style={styles.dropTime}>
-          {formatDistanceToNow(new Date(drop.created_at || Date.now()))} ago
-        </Text>
-        
-        {drop.min_ghox_required && drop.min_ghox_required > 0 ? (
-          <View style={styles.requirementBadge}>
-            <Text style={styles.requirementText}>
-              {drop.min_ghox_required} GHOX required
-            </Text>
-          </View>
-        ) : null}
-      </View>
-      
-      {isExpired ? (
-        <View style={styles.expiredOverlay}>
-          <Text style={styles.expiredText}>Expired</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-};
-
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: colors.background,
   },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    marginBottom: 0,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 56,
+  },
   header: {
-    padding: 20,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 0,
   },
   title: {
     fontSize: 32,
@@ -186,7 +154,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: colors.text.muted,
-    marginBottom: 20,
+    marginBottom: 8,
   },
   balanceContainer: {
     flexDirection: 'row',
@@ -212,7 +180,8 @@ const styles = StyleSheet.create({
   },
   dropsList: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: 16,
+    paddingBottom: 0,
   },
   emptyState: {
     alignItems: 'center',
@@ -229,91 +198,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text.muted,
     textAlign: 'center',
-  },
-  dropCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: colors.shadow.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  expiredCard: {
-    opacity: 0.6,
-  },
-  dropHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  dropTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text.primary,
-    flex: 1,
-  },
-  dropEmoji: {
-    fontSize: 24,
-  },
-  dropDescription: {
-    fontSize: 16,
-    color: colors.text.muted,
-    marginBottom: 16,
-    lineHeight: 24,
-  },
-  prizeContainer: {
-    backgroundColor: colors.muted,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  prizeLabel: {
-    fontSize: 14,
-    color: colors.text.muted,
-    marginBottom: 4,
-  },
-  prizeValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  dropFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dropTime: {
-    fontSize: 14,
-    color: colors.text.muted,
-  },
-  requirementBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  requirementText: {
-    fontSize: 12,
-    color: colors.text.primary,
-    fontWeight: '600',
-  },
-  expiredOverlay: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    backgroundColor: colors.error,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  expiredText: {
-    fontSize: 12,
-    color: colors.text.primary,
-    fontWeight: '600',
   },
   ghostEmoji: {
     fontSize: 32,

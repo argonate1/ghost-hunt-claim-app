@@ -24,24 +24,81 @@ interface DropsMapProps {
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiZGV2b2x2ZWRhaSIsImEiOiJjbWNubG9sMHIwOHhxMmtwdWkzMWNnOGNiIn0.emTow81IrSPSApDkLLEbwg';
 
+// Maximum distance to show drops (in miles)
+const MAX_DISTANCE_MILES = 100;
+
+// Function to calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 3959; // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in miles
+};
+
 export default function DropsMap({ mapboxToken = MAPBOX_TOKEN, disableInteractions = false, dropFilter }: DropsMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [drops, setDrops] = useState<Drop[]>([]);
   const [filteredDrops, setFilteredDrops] = useState<Drop[]>([]);
+  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const currentPopup = useRef<mapboxgl.Popup | null>(null);
   const { walletAddress, hasMinimumGhox } = useWallet();
 
+  // Calculate zoom level for 20-mile radius
+  // 20 miles ≈ 32.19 km
+  // At zoom level 10, 1 pixel ≈ 0.5 km
+  // At zoom level 9, 1 pixel ≈ 1 km  
+  // At zoom level 8, 1 pixel ≈ 2 km
+  // For 20-mile radius, we want zoom level around 8-9
+  const TWENTY_MILE_ZOOM = 8.5;
+
   useEffect(() => {
     fetchDropsWithCoordinates();
+    getUserLocation();
   }, []);
+
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.log('Geolocation error:', error);
+          // Continue without user location
+        }
+      );
+    }
+  };
 
   useEffect(() => {
     // Filter drops based on GHOX requirements and optional drop filter
     let filtered = drops.filter(drop => {
       const requiredGhox = drop.min_ghox_required || 0;
-      if (requiredGhox === 0) return true; // No requirement, show to everyone
-      return walletAddress && hasMinimumGhox(requiredGhox);
+      const hasGhoxAccess = requiredGhox === 0 || (walletAddress && hasMinimumGhox(requiredGhox));
+      
+      if (!hasGhoxAccess) return false;
+      
+      // Filter by distance if user location is available
+      if (userLocation && drop.latitude && drop.longitude) {
+        const distance = calculateDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          drop.latitude,
+          drop.longitude
+        );
+        return distance <= MAX_DISTANCE_MILES;
+      }
+      
+      return true; // Show all drops if no user location
     });
     
     // If dropFilter is provided, show only that specific drop
@@ -50,7 +107,7 @@ export default function DropsMap({ mapboxToken = MAPBOX_TOKEN, disableInteractio
     }
     
     setFilteredDrops(filtered);
-  }, [drops, walletAddress, hasMinimumGhox, dropFilter]);
+  }, [drops, walletAddress, hasMinimumGhox, dropFilter, userLocation]);
 
   useEffect(() => {
     if (!mapContainer.current || !mapboxToken) return;
@@ -58,11 +115,16 @@ export default function DropsMap({ mapboxToken = MAPBOX_TOKEN, disableInteractio
     // Initialize map
     mapboxgl.accessToken = mapboxToken;
     
+    // Use user location as center if available, otherwise default to San Francisco
+    const center: [number, number] = userLocation ? 
+      [userLocation.longitude, userLocation.latitude] : 
+      [-122.4194, 37.7749];
+    
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      zoom: 10,
-      center: [-122.4194, 37.7749], // Default to San Francisco
+      zoom: TWENTY_MILE_ZOOM,
+      center: center,
       // Disable interactions if specified
       interactive: !disableInteractions,
       scrollZoom: !disableInteractions,
@@ -94,7 +156,7 @@ export default function DropsMap({ mapboxToken = MAPBOX_TOKEN, disableInteractio
       }
       map.current?.remove();
     };
-  }, [mapboxToken, filteredDrops]);
+  }, [mapboxToken, filteredDrops, userLocation]);
 
   const fetchDropsWithCoordinates = async () => {
     const { data } = await supabase
@@ -238,17 +300,24 @@ export default function DropsMap({ mapboxToken = MAPBOX_TOKEN, disableInteractio
         });
       });
       
-      // Fit to bounds if we have drops - moved inside the callback to ensure markers are loaded
-      if (filteredDrops.length > 0) {
+      // Center map on user location or drops
+      if (userLocation) {
+        // If user location is available, center on user with 20-mile radius
+        map.current!.setCenter([userLocation.longitude, userLocation.latitude]);
+        map.current!.setZoom(TWENTY_MILE_ZOOM);
+      } else if (filteredDrops.length > 0) {
+        // If no user location but drops available, center on drops
         const bounds = new mapboxgl.LngLatBounds();
         filteredDrops.forEach(drop => {
           bounds.extend([drop.longitude!, drop.latitude!]);
         });
-        // Increase padding to ensure all ghosts are fully visible
-        map.current!.fitBounds(bounds, { 
-          padding: { top: 150, bottom: 150, left: 150, right: 150 },
-          maxZoom: 10 // Lower max zoom to show more area
-        });
+        
+        const center = bounds.getCenter();
+        map.current!.setCenter([center.lng, center.lat]);
+        map.current!.setZoom(TWENTY_MILE_ZOOM);
+      } else {
+        // Default view with 20-mile radius
+        map.current!.setZoom(TWENTY_MILE_ZOOM);
       }
     });
   };
