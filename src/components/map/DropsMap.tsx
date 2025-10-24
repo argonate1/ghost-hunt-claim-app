@@ -324,9 +324,9 @@ export default function DropsMap({ mapboxToken = MAPBOX_TOKEN, disableInteractio
 
   const addFloatingAnimation = () => {
     if (!map.current) return;
-    
+
     let animationId: number;
-    let startTime = Date.now();
+    const startTime = Date.now();
     
     const animate = () => {
       const runtime = Date.now() - startTime;

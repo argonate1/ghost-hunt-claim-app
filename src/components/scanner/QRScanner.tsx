@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { QrReader } from 'react-qr-reader';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -15,16 +15,23 @@ export function QRScanner({ onClose }: QRScannerProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const qrRegionId = 'qr-reader';
 
-  const handleScan = async (result: any) => {
-    if (!result || !result.text || isProcessing) return;
-    
+  const handleScan = useCallback(async (decodedText: string) => {
+    if (!decodedText || isProcessing) return;
+
     setIsProcessing(true);
     setIsScanning(false);
 
     try {
+      // Stop scanning while processing
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        await scannerRef.current.stop();
+      }
+
       // Extract drop ID from QR code
-      const dropId = result.text;
+      const dropId = decodedText;
       
       // First, get the user's profile to check for wallet address
       const { data: profile, error: profileError } = await supabase
@@ -122,31 +129,46 @@ export function QRScanner({ onClose }: QRScannerProps) {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [isProcessing, user, toast, onClose]);
 
-  const handleError = (error: any) => {
-    // Only show toast for actual camera permission errors, not scanning behavior
-    // Most scanning "errors" are just normal operation (no QR code detected)
-    const isCameraPermissionError = error?.name === 'NotAllowedError' || 
-                                   error?.name === 'NotFoundError' ||
-                                   error?.name === 'NotReadableError' ||
-                                   (error?.message && (
-                                     error.message.includes('Permission denied') ||
-                                     error.message.includes('NotAllowed') ||
-                                     error.message.includes('camera not available') ||
-                                     error.message.includes('getUserMedia')
-                                   ));
-    
-    if (isCameraPermissionError) {
-      console.error('QR Scanner camera permission error:', error);
-      toast({
-        title: "Camera Permission Required",
-        description: "Please allow camera access to scan QR codes.",
-        variant: "destructive"
-      });
+  useEffect(() => {
+    const startScanner = async () => {
+      try {
+        const html5QrCode = new Html5Qrcode(qrRegionId);
+        scannerRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 }
+          },
+          handleScan,
+          () => {
+            // Error callback - fires continuously when no QR code is detected
+            // We ignore these errors as they're normal during scanning
+          }
+        );
+      } catch (err: any) {
+        console.error('QR Scanner initialization error:', err);
+        toast({
+          title: "Camera Error",
+          description: "Unable to access camera. Please check permissions.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    if (isScanning && !isProcessing) {
+      startScanner();
     }
-    // Ignore all other errors (scanning behavior, no codes detected, etc.)
-  };
+
+    return () => {
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(console.error);
+      }
+    };
+  }, [isScanning, isProcessing, handleScan, toast]);
 
   return (
     <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -167,18 +189,7 @@ export function QRScanner({ onClose }: QRScannerProps) {
         <CardContent className="space-y-4">
           {isScanning && !isProcessing && (
             <div className="relative w-full aspect-square rounded-lg overflow-hidden border-2 border-primary glow-primary">
-              <QrReader
-                onResult={(result, error) => {
-                  if (error) {
-                    handleError(error);
-                  } else if (result) {
-                    handleScan(result);
-                  }
-                }}
-                constraints={{ facingMode: 'environment' }}
-                className="w-full h-full"
-              />
-              <div className="absolute inset-0 border-4 border-primary/50 rounded-lg animate-pulse"></div>
+              <div id={qrRegionId} className="w-full h-full" />
             </div>
           )}
 
